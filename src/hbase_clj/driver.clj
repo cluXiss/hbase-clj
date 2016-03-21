@@ -37,7 +37,7 @@
 
   (let [^HBaseConfiguration conf (HBaseConfiguration/create)]
     (doseq [[k v] (partition 2 options)]
-      (.set hb-conf k v))
+      (.set conf k v))
     (reset! latest-config conf)
     conf))
 
@@ -54,7 +54,7 @@
   [name & options]
 
   `(def ^HBaseConfiguration ~name 
-     (apply gen-config options)))
+     (gen-config ~@options)))
 
 (defn- connect!
   [cfg]

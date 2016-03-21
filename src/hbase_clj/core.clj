@@ -19,7 +19,7 @@
     (org.apache.hadoop.hbase.util
       Bytes)))
 
-(declare get-putter get-getter)
+(declare get-putter get-getter get-deleter)
 (defn validate-tables []
   (if-not (and *table* *schema*)
      (throw 
@@ -126,17 +126,17 @@
             (doseq [c c] (addcolumn f c))
             (addcolumn f c)))
         (.addFamily getter 
-                    (encode :keyword f))))
+                    (encode :keyword d))))
 
     getter))
 
 (defn- get-deleter 
   [id attrs]
   (let [{:keys [id-type families]} *schema*
-        ^Delete d (Delete. (encode id-type id))
+        ^Delete deleter (Delete. (encode id-type id))
         addcolumn (fn [f c]
                     (.addColumn 
-                      d 
+                      deleter 
                       (encode :keyword f) 
                       (encode (get-in families [f c] 
                                       (get-in families [f :--ktype]))
@@ -148,6 +148,6 @@
           (if (coll? c)
             (doseq [c c] (addcolumn f c))
             (addcolumn f c)))
-        (.addFamily d (encode :keyword f))))
+        (.addFamily deleter (encode :keyword d))))
 
-    getter))
+    deleter))

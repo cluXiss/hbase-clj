@@ -1,4 +1,4 @@
-(ns hbase-clj
+(ns hbase-clj.codec
   (:import 
     (org.apache.hadoop.hbase.util Bytes)))
 

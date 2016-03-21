@@ -3,6 +3,8 @@
   :url ""
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :profiles {:dev {:dependencies [[midje "1.7.0"]]}
+             :midje {}}
   :dependencies 
   [[org.clojure/clojure "1.8.0"]
    [org.apache.hbase/hbase-shaded-client "1.2.0"]])
