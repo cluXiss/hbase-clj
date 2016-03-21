@@ -56,7 +56,7 @@
   `(def ^HBaseConfiguration ~name 
      (gen-config ~@options)))
 
-(defn- connect!
+(defn connect!
   [cfg]
   (if-not (@connections cfg) 
     (swap! connections 
@@ -97,16 +97,18 @@
 
   `(def ^HBTable-schema ~table 
      (HBTable-schema. 
-       (or hbase @latest-config)
+       (or ~hbase @latest-config)
        (or ~table-name (name ~table))
        ~id-type
-       (apply hash-map families))))
+       (hash-map ~@families))))
 
 (defmacro with-table 
   [table & form]
-  `(let [{:keys [hb table-name]} ~table]
+  `(let [hb#         (:hb ~table)
+         table-name# (:table-name ~table)]
      (binding 
-       [^HTableInterface *table* (.getTable (connect! hb) table#)
-        *schema* (select-keys ~table [:id-type famalies])]
+       [^HTableInterface *table* (.getTable (connect! hb#) 
+                                            (Bytes/toBytes table-name#))
+        *schema* (select-keys ~table [:id-type :families])]
        ~@form
        (.close *table*))))

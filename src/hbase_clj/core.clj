@@ -32,8 +32,9 @@
    col-attrs should be a hashmaps of <col: val>"
   [& records]
   (validate-tables)
+  (println *table*)
   (.put *table* 
-        (into-array 
+        (vec 
           (for [[id attr-map] (partition 2 records)] 
             (get-putter id attr-map)))))
 
@@ -45,7 +46,7 @@
   [& constraints]
   (validate-tables)
   (.get *table*
-        (into-array 
+        (vec 
           (for [[id attrs] (partition 2 constraints)] 
             (get-getter id attrs)))))
 
@@ -69,7 +70,7 @@
     (let [{:keys [id-type families]} *schema*
 
           res (atom {})]
-      #_(doseq [r (.getScanner *table* scanner)]
+      (doseq [r (.getScanner *table* scanner)]
         (doseq [^KeyValue kv (.list r)]
           (let [id (decode id-type (.getRow kv))
 
@@ -96,7 +97,6 @@
   [id attr-map]
   (let [{:keys [id-type families]} *schema*
         ^Put putter (Put. (encode id-type id))]
-
     (doseq [[family attr-map] attr-map]
       (let [typemap (families family)]
         (doseq [[k v] attr-map]
