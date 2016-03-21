@@ -70,7 +70,7 @@
     (let [{:keys [id-type families]} *schema*
 
           res (atom {})]
-      (doseq [r (.getScanner *table* scanner)]
+      #_(doseq [r (.getScanner *table* scanner)]
         (doseq [^KeyValue kv (.list r)]
           (let [id (decode id-type (.getRow kv))
 
