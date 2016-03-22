@@ -32,7 +32,6 @@
    col-attrs should be a hashmaps of <col: val>"
   [& records]
   (validate-tables)
-  (println *table*)
   (.put *table* 
         (vec 
           (for [[id attr-map] (partition 2 records)] 
@@ -43,12 +42,37 @@
    attrs should be vector of <family> or [<family> [<attr> <attr> ....]],
    e.g: [[:info [:age :name]] :follow]
    "
-  [& constraints]
+  [& rows]
   (validate-tables)
-  (.get *table*
-        (vec 
-          (for [[id attrs] (partition 2 constraints)] 
-            (get-getter id attrs)))))
+  (let [with-versions? (= (first rows) :with-versions)
+        rows (if with-versions? (rest rows) rows)
+        {:keys [id-type families]} *schema*]
+    (doall 
+      (into {} 
+            (for [r (.get *table*
+                          (vec 
+                            (for [r rows] 
+                              (if (coll? r) 
+                                (get-getter (first r) (or (second r) [])
+                                            (apply hash-map (drop 2 r)))
+                                (get-getter r [] {})))))]
+              (let [id (decode id-type (.getRow r))]
+                [id 
+                 (apply merge-with 
+                        (if with-versions? 
+                          (partial merge-with concat)
+                          merge)
+                        (for [^KeyValue kv (.list r)]
+                          (let [family (keyword (Bytes/toString (.getFamily kv)))
+                                attr   (decode (get-in families [family :--ktype])
+                                               (.getQualifier kv))
+                                v      (decode (get-in families [family attr]
+                                                       (get-in families [family :--vtype]))
+                                               (.getValue kv))
+                                ts     (.getTimestamp kv)]
+                            {family {attr (if with-versions?
+                                            [{:val v :timestamp ts}]
+                                            v)}})))]))))))
 
 (defn delete-data!
   "(get-data <id> <attrs>, <id> <attrs> ....)
@@ -62,36 +86,13 @@
              (for [[id attrs] (partition 2 constraints)] 
                (get-deleter id attrs)))))
 
-(defn scan []
+(defn scan 
+  [{:keys [start-id end-id 
+           eager? with-versions? max-versions  
+           attrs cache-size small?]}]
   (let [^Scan scanner (Scan.)]
 
-    (validate-tables)
-
-    (let [{:keys [id-type families]} *schema*
-
-          res (atom {})]
-      #_(doseq [r (.getScanner *table* scanner)]
-        (doseq [^KeyValue kv (.list r)]
-          (let [id (decode id-type (.getRow kv))
-
-                family (decode :keyword (.getFamily kv))
-
-                attr (decode (get-in families [family :--ktype]) 
-                             (.getQualifier kv))
-                value (decode 
-                        (get-in families [family attr]
-                                (get-in families [family :--vtype]))
-                        (.getValue kv))
-                ts (.getTimestamp kv)]
-
-            (if-not (@res id)
-              (swap! res assoc-in [id :id] id))
-
-            (swap! res 
-                   update-in [id family] 
-                   update-in [attr]
-                   #(conj (or % []) [value ts])))))
-      @res)))
+    ))
 
 (defn- get-putter 
   [id attr-map]
@@ -108,7 +109,7 @@
     putter))
 
 (defn- get-getter 
-  [id attrs]
+  [id attrs {:keys [max-versions time-range]}]
   (let [{:keys [id-type families]} *schema*
         ^Get getter (Get. (encode id-type id))
         addcolumn (fn [f c]
@@ -118,7 +119,12 @@
                       (encode (get-in families [f c] 
                                       (get-in families [f :--ktype]))
                               c)))]
-
+    (if max-versions 
+      (.setMaxVersions getter max-versions))
+    (if time-range
+      (.setTimeRange getter 
+                     (long (first time-range)) 
+                     (long (second time-range))))
     (doseq [d attrs]
       (if (coll? d)
         (let [[f c] d]
@@ -139,7 +145,7 @@
                       deleter 
                       (encode :keyword f) 
                       (encode (get-in families [f c] 
-                                      (get-in families [f :--ktype]))
+                                      (get-in families [f :--vtype]))
                               c)))]
 
     (doseq [d attrs]
