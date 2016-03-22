@@ -87,12 +87,51 @@
                (get-deleter id attrs)))))
 
 (defn scan 
-  [{:keys [start-id end-id 
-           eager? with-versions? max-versions  
-           attrs cache-size small?]}]
-  (let [^Scan scanner (Scan.)]
+  [{:keys [start-id stop-id 
+           cache-size small?
+           max-versions time-range
+           attrs eager? with-versions?]}]
+  (let [{:keys [id-type families]} *schema*
+        ^Scan scanner (Scan.)
+        addcolumn
+        (fn [f c]
+          (.addColumn 
+            scanner 
+            (encode :keyword f) 
+            (encode (get-in families [f c] 
+                            (get-in families [f :--ktype]))
+                    c)))]
 
-    ))
+    (if start-id 
+      (.setStartRow scanner (encode id-type start-id)))
+
+    (if stop-id 
+      (.setStopRow scanner (encode id-type stop-id)))
+
+    (if time-range 
+      (.setTimeRange 
+        scanner
+        (long (first  time-range))
+        (long (second time-range))))
+
+    (if cache-size 
+      (.setCaching scanner cache-size))
+
+    (if max-versions
+      (.setMaxVersions scanner max-versions))
+
+    (doseq [d attrs]
+      (if (coll? d)
+        (let [[f c] d]
+          (if (coll? c)
+            (doseq [c c] (addcolumn f c))
+            (addcolumn f c)))
+        (.addFamily scanner 
+                    (encode :keyword d))))
+
+    (let [^ResultScanner res (.getScanner *table* scanner)]
+      ;;TODO: return scan result
+      )))
 
 (defn- get-putter 
   [id attr-map]
