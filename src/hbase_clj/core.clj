@@ -26,59 +26,70 @@
        (Exception.
          "table and schema must be specified before any operation"))))
 
+(defn- proc-result
+  [with-versions? id-type families r]
+  [(decode id-type (.getRow r))
+   (apply merge-with 
+          (if with-versions? 
+            (partial merge-with concat)
+            merge)
+          (for [^KeyValue kv (.list r)]
+            (let [family (keyword (Bytes/toString (.getFamily kv)))
+                  attr   (decode (get-in families [family :--ktype])
+                                 (.getQualifier kv))
+                  v      (decode (get-in families [family attr]
+                                         (get-in families [family :--vtype]))
+                                 (.getValue kv))
+                  ts     (.getTimestamp kv)]
+              {family {attr (if with-versions?
+                              [{:val v :timestamp ts}]
+                              v)}})))])
+
+
 (defn put-data!
-  "(put-data! <id> <attrs>, <id> <attrs> .....)
-   attrs should be a hashmap of <family: col-attrs>
-   col-attrs should be a hashmaps of <col: val>"
+  "usage: 
+   (get-data [id, attrs] [id, attrs] ....)
+   attrs should be a hashmap of <family-> col-attrs>
+   col-attrs should be a hashmaps of <col-> val>"
   [& records]
   (validate-tables)
   (.put *table* 
         (vec 
-          (for [[id attr-map] (partition 2 records)] 
+          (for [[id attr-map] records] 
             (get-putter id attr-map)))))
 
 (defn get-data
-  "(get-data <id> <attrs>, <id> <attrs> ....)
-   attrs should be vector of <family> or [<family> [<attr> <attr> ....]],
-   e.g: [[:info [:age :name]] :follow]
-   "
+  "usage:
+   (get-data <id|attrs> <id|attrs> ....)
+   (get-data :with-versions ...)
+   <id|attrs> could be <id> or [<id> <attrs>]
+   <attrs> should be vector of <family> or [<family> [<attr> <attr> ....]],
+   e.g: 
+       (get-data \"001\" 
+                 [\"002\" [:info]]
+                 [\"003\" [[:info [:age :name]] :follow]])
+   Returns a seq of vec: [id, record]
+   where every record as: {family-> {col-> val}}
+   if passed `:with-versions` as the first arg, val would be a coll of {:val xxx :timestamp xxx}"
   [& rows]
   (validate-tables)
   (let [with-versions? (= (first rows) :with-versions)
         rows (if with-versions? (rest rows) rows)
         {:keys [id-type families]} *schema*]
-    (doall 
-      (into {} 
-            (for [r (.get *table*
-                          (vec 
-                            (for [r rows] 
-                              (if (coll? r) 
-                                (get-getter (first r) (or (second r) [])
-                                            (apply hash-map (drop 2 r)))
-                                (get-getter r [] {})))))]
-              (let [id (decode id-type (.getRow r))]
-                [id 
-                 (apply merge-with 
-                        (if with-versions? 
-                          (partial merge-with concat)
-                          merge)
-                        (for [^KeyValue kv (.list r)]
-                          (let [family (keyword (Bytes/toString (.getFamily kv)))
-                                attr   (decode (get-in families [family :--ktype])
-                                               (.getQualifier kv))
-                                v      (decode (get-in families [family attr]
-                                                       (get-in families [family :--vtype]))
-                                               (.getValue kv))
-                                ts     (.getTimestamp kv)]
-                            {family {attr (if with-versions?
-                                            [{:val v :timestamp ts}]
-                                            v)}})))]))))))
+    (map (partial proc-result with-versions? id-type families) 
+         (.get *table*
+               (vec 
+                 (for [r rows] 
+                   (if (coll? r) 
+                     (get-getter (first r) (or (second r) [])
+                                 (apply hash-map (drop 2 r)))
+                     (get-getter r [] {}))))))))
 
 (defn delete-data!
-  "(get-data <id> <attrs>, <id> <attrs> ....)
+  "usage: 
+   (delete-data [id, attrs] [id, attrs] ....)
    attrs should be vector of <family> or [<family> [<attr> <attr> ....]],
-   e.g: [[:info [:age :name]] :follow]
-   "
+   e.g: [[:info [:age :name]] :follow]"
   [& constraints]
   (validate-tables)
   (.delete *table*
@@ -87,12 +98,33 @@
                (get-deleter id attrs)))))
 
 (defn scan 
-  [{:keys [start-id stop-id 
-           cache-size small?
-           max-versions time-range
-           attrs eager? with-versions?]}]
-  (let [{:keys [id-type families]} *schema*
-        ^Scan scanner (Scan.)
+  "usage:
+   (scan & options)
+   (scan :with-versions & options)
+   options could contain these keys:
+   - :eager?       If set to true, return a hash-map similar to the result of `get`, if false, returns a lazy scanner to fetch results later.
+   - :start-id     The ID the htable-scan starts from
+   - :stop-id      The ID the htable-scan stops at
+   - :cache-size   The number of rows fetched when getting a \"next\" item, only takes effect when `eager?` is set to false
+   - :small?       Determine if this is a \"small\" scan, see: https://hbase.apache.org/0.94/apidocs/org/apache/hadoop/hbase/client/Scan.html#setSmall(boolean)
+   - :max-versions The max version to fetch on each record
+   - :time-range   The time-range to fetch on each record
+   - :attrs        Same as the definition of `<attrs>` in `(get-data ..)`"
+  [& args]
+  (let [with-versions? 
+        (= :with-versions (first args)) 
+
+        args ((if with-versions? rest identity) args)
+
+        {:keys [start-id stop-id 
+                cache-size small?
+                max-versions time-range
+                attrs eager?]}
+        (apply hash-map args)
+
+        {:keys [id-type families]} *schema*
+
+        ^Scan scanner (Scan.) 
         addcolumn
         (fn [f c]
           (.addColumn 
@@ -130,8 +162,20 @@
                     (encode :keyword d))))
 
     (let [^ResultScanner res (.getScanner *table* scanner)]
-      ;;TODO: return scan result
-      )))
+      (if eager? 
+        (let [t (transient [])] 
+          (loop []
+            (if-let [r (.next res)]
+              (do 
+                (conj! t (proc-result with-versions? id-type families r))
+                (recur))
+              (persistent! t))))
+        (letfn [(get-res [] 
+                  (lazy-seq 
+                    (if-let [r (.next res)]
+                      (cons (proc-result with-versions? id-type families r)
+                            (get-res)))))]
+          (get-res))))))
 
 (defn- get-putter 
   [id attr-map]

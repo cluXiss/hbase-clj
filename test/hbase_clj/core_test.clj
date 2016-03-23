@@ -28,32 +28,36 @@
   :score {:--ktype :keyword  :--vtype :long})
 
 (try 
-  (with-table test-table
-    (fact "About getting and putting"
+  (fact "About getting and putting"
+    (with-table test-table
       (put-data! 
-        "101" {:info {:age 17 :name "Alice"}
-               :score {:math 99 :physics 78}}
+        ["101" {:info {:age 17 :name "Alice"}
+                :score {:math 99 :physics 78}}]
 
-
-        "102" {:info {:age 19 :name "Bob"}
-               :score {:math 63 :physics 52}})
+        ["102" {:info {:age 19 :name "Bob"}
+                :score {:math 63 :physics 52}}])
 
       (get-data "102") 
-      => (just {"102"
-                {:info {:age 19 :name "Bob"}
-                 :score {:math 63 :physics 52}}})
+      => (just [["102"
+                 {:info {:age 19 :name "Bob"}
+                  :score {:math 63 :physics 52}}]])
 
-      ((get-data :with-versions "102") "102")
-      => (contains 
-           {:info 
-            (contains 
-              {:age (contains [(contains {:val 19})])})})
+      (get-data :with-versions "102")
+      => (just 
+           [(just 
+              ["102"
+               (contains 
+                 {:info 
+                  (contains 
+                    {:age (contains [(contains {:val 19})])})})])])
 
       (get-data ["101" [:info]])
-      => (just {"101" (just {:info (contains {})})})
+      => (just [(just ["101" (just {:info (contains {})})])])
 
       (get-data ["101" [[:score [:math]]]])
-      => (just {"101" (just {:score (just {:math number?})})})))
+      => (just [(just ["101" (just {:score (just {:math number?})})])])
+      
+      ))
 
   (catch Exception e 
     (clojure.stacktrace/print-cause-trace e)))
