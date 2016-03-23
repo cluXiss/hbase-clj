@@ -6,7 +6,7 @@
   :profiles {:dev {:dependencies [[midje "1.7.0"]]}
              :midje {}}
   :plugins [[lein-codox "0.9.4"]]
-  :codox {:source-uri "https://github.com/cluXiss/hbase-clj/{filepath}#L{line}"
+  :codox {:source-uri "https://github.com/cluXiss/hbase-clj/blob/master/{filepath}#L{line}"
           :output-path "./"}
   :dependencies 
   [[org.clojure/clojure "1.8.0"]

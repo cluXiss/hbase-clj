@@ -50,11 +50,11 @@
 
 (defn put!
   "Put into HBase Table
+   Should only be called inside `hbase-clj.driver/with-table`
    --------------------
    usage: 
    (put! [id, attrs] [id, attrs] ....)
-   attrs should be a hashmap of {family-> col-attrs}
-   col-attrs should be a hashmaps of <col-> val>"
+   attrs should be a hashmap of {family-> {col-> val}}"
   [& records]
   (validate-tables)
   (.put *table* 
@@ -64,16 +64,21 @@
 
 (defn get
   "Get from HBase Table according to specified ids
+   Should only be called inside `hbase-clj.driver/with-table`
    --------------------
    usage:
-   (get <id|attrs> <id|attrs> ....)
+   (get id|attrs id|attrs ....)
    (get :with-versions ...)
-   <id|attrs> could be <id> or [<id> <attrs>]
-   <attrs> should be vector of <family> or [<family> [<attr> <attr> ....]],
+
+   id|attrs could be id or a pair like vec: [id attrs]
+   which attrs should be a hash-map of {family-> col/cols}
+   col/cols could either be a col, a vector of cols or :* which stands for all cols
+   --------------------
    e.g: 
        (get \"001\" 
-                 [\"002\" [:info]]
-                 [\"003\" [[:info [:age :name]] :follow]])
+            [\"002\" {:info :*}]
+            [\"003\" {:info [:age :name] :follow :*}]
+           ....)
    Returns a seq of vec: [id, record]
    where every record as: {family-> {col-> val}}
    if passed `:with-versions` as the first arg, val would be a coll of {:val xxx :timestamp xxx}"
@@ -93,6 +98,7 @@
 
 (defn scan 
   "Scan inside HBase Table according to certain rules
+   Should only be called inside `hbase-clj.driver/with-table`
    --------------------
    usage:
    (scan & options)
@@ -174,6 +180,13 @@
           (get-res))))))
 
 (defn incr!
+  "Make atomic incrementations on certain row-family-col-s inside an HBase Table
+   Should only be called inside `hbase-clj.driver/with-table`
+   --------------------
+   usage: 
+   (incr! [id, attrs] [id, attrs] ....)
+   attrs should be a hash-map of {family-> {col-> val}}"
+
   [& rows]
   (validate-tables)
   (let [{:keys [id-type families]} *schema*]
@@ -188,10 +201,11 @@
 ;;TODO: Figure out why
 #_(defn delete!
   "Delete from HBase Table
+   Should only be called inside `hbase-clj.driver/with-table`
    --------------------
    usage: 
-   (delete [id, attrs] [id, attrs] ....)
-   attrs should be vector of <family> or [<family> [<attr> <attr> ....]],
+   (delete! [id, attrs] [id, attrs] ....)
+   attrs should be a hash-map of of {family-> col}, drops the whole family when col set to :*
    e.g: [[:info [:age :name]] :follow]"
   [& rows]
   (validate-tables)
