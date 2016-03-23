@@ -1,5 +1,5 @@
 (defproject org.cluxis.hbase-clj "0.1.0-SNAPSHOT"
-  :description "Talk to hbase in clojure, under construction, do not use this"
+  :description "Talk to hbase in clojure"
   :url ""
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
