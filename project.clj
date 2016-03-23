@@ -7,7 +7,7 @@
              :midje {}}
   :plugins [[lein-codox "0.9.4"]]
   :codox {:source-uri "https://github.com/cluXiss/hbase-clj/{filepath}#L{line}"
-          :output-path ""}
+          :output-path "./"}
   :dependencies 
   [[org.clojure/clojure "1.8.0"]
    [org.apache.hbase/hbase-shaded-client "1.2.0"]])
