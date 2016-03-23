@@ -6,6 +6,12 @@
 (defmulti decode (fn [t _] t))
 
 (defmacro defcodec 
+  "Registers a new codec transformation to use in `hbase-clj.core/def-htable`.
+   -----------------------------------
+   e.g:
+   (defcodec :long
+     :encoder (fn [data] (Bytes/toBytes (long data)))
+     :decoder Bytes/toLong)"
   [t & {:keys [encoder decoder]}]
   `(do 
      (defmethod encode ~t [t# data#] (~encoder data#))
