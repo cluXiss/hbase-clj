@@ -11,10 +11,6 @@
      (defmethod encode ~t [t# data#] (~encoder data#))
      (defmethod decode ~t [t# data#] (~decoder data#))))
 
-(defcodec :int 
-  :encoder (fn [data] (Bytes/toBytes (int data))) 
-  :decoder Bytes/toInt)
-
 (defcodec :long 
   :encoder (fn [data] (Bytes/toBytes (long data)))
   :decoder Bytes/toLong)

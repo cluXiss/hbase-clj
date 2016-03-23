@@ -1,4 +1,5 @@
 (ns hbase-clj.core
+  (:refer-clojure :exclude [get])
   (:require 
     (hbase-clj
       [driver :refer :all]
@@ -12,14 +13,15 @@
       HTableDescriptor
       KeyValue)
     (org.apache.hadoop.hbase.client
-      Delete Get Put Scan
+      Delete Get Put Scan Increment
       Result ResultScanner 
       HBaseAdmin HTable 
       HConnection HConnectionManager)
     (org.apache.hadoop.hbase.util
       Bytes)))
 
-(declare get-putter get-getter get-deleter)
+(declare get-putter get-getter get-deleter get-increr)
+
 (defn validate-tables []
   (if-not (and *table* *schema*)
      (throw 
@@ -46,11 +48,11 @@
                               v)}})))])
 
 
-(defn put-data!
-  "Put data into HBase Table
+(defn put!
+  "Put into HBase Table
    --------------------
    usage: 
-   (put-data! [id, attrs] [id, attrs] ....)
+   (put! [id, attrs] [id, attrs] ....)
    attrs should be a hashmap of {family-> col-attrs}
    col-attrs should be a hashmaps of <col-> val>"
   [& records]
@@ -60,16 +62,16 @@
           (for [[id attr-map] records] 
             (get-putter id attr-map)))))
 
-(defn get-data
-  "Get data from HBase Table according to specified ids
+(defn get
+  "Get from HBase Table according to specified ids
    --------------------
    usage:
-   (get-data <id|attrs> <id|attrs> ....)
-   (get-data :with-versions ...)
+   (get <id|attrs> <id|attrs> ....)
+   (get :with-versions ...)
    <id|attrs> could be <id> or [<id> <attrs>]
    <attrs> should be vector of <family> or [<family> [<attr> <attr> ....]],
    e.g: 
-       (get-data \"001\" 
+       (get \"001\" 
                  [\"002\" [:info]]
                  [\"003\" [[:info [:age :name]] :follow]])
    Returns a seq of vec: [id, record]
@@ -89,35 +91,21 @@
                                  (apply hash-map (drop 2 r)))
                      (get-getter r [] {}))))))))
 
-(defn delete-data!
-  "Delete data from HBase Table
-   --------------------
-   usage: 
-   (delete-data [id, attrs] [id, attrs] ....)
-   attrs should be vector of <family> or [<family> [<attr> <attr> ....]],
-   e.g: [[:info [:age :name]] :follow]"
-  [& constraints]
-  (validate-tables)
-  (.delete *table*
-           (into-array 
-             (for [[id attrs] (partition 2 constraints)] 
-               (get-deleter id attrs)))))
-
 (defn scan 
-  "Scan data inside HBase Table according to certain rules
+  "Scan inside HBase Table according to certain rules
    --------------------
    usage:
    (scan & options)
    (scan :with-versions & options)
    options could contain these keys:
      - :eager?       If set to true, return a hash-map similar to the result of `get`, if false, returns a lazy scanner to fetch results later.
-     - :start-id     The ID the htable-scan starts from
-     - :stop-id      The ID the htable-scan stops at
+     - :start-id     The ID the htable-scan starts from (including)
+     - :stop-id      The ID the htable-scan stops at (non-including)
      - :cache-size   The number of rows fetched when getting a \"next\" item, only takes effect when `eager?` is set to false
      - :small?       Determine if this is a \"small\" scan, see: https://hbase.apache.org/0.94/apidocs/org/apache/hadoop/hbase/client/Scan.html#setSmall(boolean)
      - :max-versions The max version to fetch on each record
      - :time-range   The time-range to fetch on each record
-     - :attrs        Same as the definition of `<attrs>` in `(get-data ..)`"
+     - :attrs        Same as the definition of `<attrs>` in `(get ..)`"
   [& args]
   (let [with-versions? 
         (= :with-versions (first args)) 
@@ -160,14 +148,13 @@
     (if max-versions
       (.setMaxVersions scanner max-versions))
 
-    (doseq [d attrs]
-      (if (coll? d)
-        (let [[f c] d]
-          (if (coll? c)
-            (doseq [c c] (addcolumn f c))
-            (addcolumn f c)))
+    (doseq [[f c] attrs]
+      (if (= c :*) 
         (.addFamily scanner 
-                    (encode :keyword d))))
+                    (encode :keyword f))
+        (if (coll? c)
+          (doseq [c c] (addcolumn f c))
+          (addcolumn f c))))
 
     (let [^ResultScanner res (.getScanner *table* scanner)]
       (if eager? 
@@ -182,8 +169,42 @@
                   (lazy-seq 
                     (if-let [r (.next res)]
                       (cons (proc-result with-versions? id-type families r)
-                            (get-res)))))]
+                            (get-res)) 
+                      (do (.close res) nil))))]
           (get-res))))))
+
+(defn incr!
+  [& rows]
+  (validate-tables)
+  (let [{:keys [id-type families]} *schema*]
+    (.batch *table*
+            (vec 
+              (map 
+                (fn [[id attr-map]]
+                  (get-increr id attr-map)) 
+                rows)))))
+
+;;The delete function fails with java.lang.UnsupportedOperationException
+;;TODO: Figure out why
+#_(defn delete!
+  "Delete from HBase Table
+   --------------------
+   usage: 
+   (delete [id, attrs] [id, attrs] ....)
+   attrs should be vector of <family> or [<family> [<attr> <attr> ....]],
+   e.g: [[:info [:age :name]] :follow]"
+  [& rows]
+  (validate-tables)
+  (.delete *table*
+           (vec 
+             (for [r rows] 
+               (if (coll? r) 
+                 (get-deleter (first r) (or (second r) []))
+                 (get-deleter r []))))))
+
+
+;;----------------------------HIDDEN FUNCTIONS--------------------------------
+
 
 (defn- get-putter 
   [id attr-map]
@@ -195,7 +216,7 @@
           (.add putter 
                 (encode :keyword family) 
                 (encode (:--ktype typemap) k)
-                (encode (get typemap k (:--vtype typemap)) v)))))
+                (encode (or (typemap k) (:--vtype typemap)) v)))))
 
     putter))
 
@@ -207,44 +228,56 @@
                     (.addColumn 
                       getter 
                       (encode :keyword f) 
-                      (encode (get-in families [f c] 
-                                      (get-in families [f :--ktype]))
-                              c)))]
+                      (encode (get-in families [f :--ktype]) c)))]
     (if max-versions 
       (.setMaxVersions getter max-versions))
     (if time-range
       (.setTimeRange getter 
                      (long (first time-range)) 
                      (long (second time-range))))
-    (doseq [d attrs]
-      (if (coll? d)
-        (let [[f c] d]
-          (if (coll? c)
-            (doseq [c c] (addcolumn f c))
-            (addcolumn f c)))
+    (doseq [[f c] attrs]
+      (if (= c :*)
         (.addFamily getter 
-                    (encode :keyword d))))
+                    (encode :keyword f))
+        (if (coll? c)
+          (doseq [c c] (addcolumn f c))
+          (addcolumn f c))))
 
     getter))
+
+(defn- get-increr
+  [id attrs]
+  (let [{:keys [id-type families]} *schema*
+        ^Increment increr (Increment. (encode id-type id))
+        addcolumn (fn [f c v]
+                    (.addColumn 
+                      increr 
+                      (encode :keyword f) 
+                      (encode (get-in families [f :--ktype])
+                              c)
+                      (long v)))]
+
+    (doseq [[f attrs] attrs]
+      (doseq [[c v] attrs]
+        (addcolumn f c v)))
+
+    increr))
 
 (defn- get-deleter 
   [id attrs]
   (let [{:keys [id-type families]} *schema*
         ^Delete deleter (Delete. (encode id-type id))
         addcolumn (fn [f c]
-                    (.addColumn 
+                    (.deleteColumn 
                       deleter 
                       (encode :keyword f) 
-                      (encode (get-in families [f c] 
-                                      (get-in families [f :--vtype]))
-                              c)))]
+                      (encode (get-in families [f :--ktype]) c)))]
 
-    (doseq [d attrs]
-      (if (coll? d)
-        (let [[f c] d]
-          (if (coll? c)
-            (doseq [c c] (addcolumn f c))
-            (addcolumn f c)))
-        (.addFamily deleter (encode :keyword d))))
+    (doseq [[f c] attrs]
+      (if (= c :*)
+        (.deleteFamily deleter (encode :keyword f))
+        (if (coll? c)
+          (doseq [c c] (addcolumn f c))
+          (addcolumn f c))))
 
     deleter))
