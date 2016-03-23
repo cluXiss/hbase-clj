@@ -143,7 +143,7 @@
    (scan & options)
    (scan :with-versions & options)
    options could contain these keys:
-     - :eager?       If set to true, return a hash-map similar to the result of `get`, if false, returns a lazy scanner to fetch results later.
+     - :eager?       If set to true, return a vector similar to the result of `get`, if false, returns a lazy seq to fetch results later.
      - :start-id     The ID the htable-scan starts from (including)
      - :stop-id      The ID the htable-scan stops at (non-including)
      - :cache-size   The number of rows fetched when getting a \"next\" item, only takes effect when `eager?` is set to false
