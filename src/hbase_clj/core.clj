@@ -47,9 +47,11 @@
 
 
 (defn put-data!
-  "usage: 
-   (get-data [id, attrs] [id, attrs] ....)
-   attrs should be a hashmap of <family-> col-attrs>
+  "Put data into HBase Table
+   --------------------
+   usage: 
+   (put-data! [id, attrs] [id, attrs] ....)
+   attrs should be a hashmap of {family-> col-attrs}
    col-attrs should be a hashmaps of <col-> val>"
   [& records]
   (validate-tables)
@@ -59,7 +61,9 @@
             (get-putter id attr-map)))))
 
 (defn get-data
-  "usage:
+  "Get data from HBase Table according to specified ids
+   --------------------
+   usage:
    (get-data <id|attrs> <id|attrs> ....)
    (get-data :with-versions ...)
    <id|attrs> could be <id> or [<id> <attrs>]
@@ -86,7 +90,9 @@
                      (get-getter r [] {}))))))))
 
 (defn delete-data!
-  "usage: 
+  "Delete data from HBase Table
+   --------------------
+   usage: 
    (delete-data [id, attrs] [id, attrs] ....)
    attrs should be vector of <family> or [<family> [<attr> <attr> ....]],
    e.g: [[:info [:age :name]] :follow]"
@@ -98,18 +104,20 @@
                (get-deleter id attrs)))))
 
 (defn scan 
-  "usage:
+  "Scan data inside HBase Table according to certain rules
+   --------------------
+   usage:
    (scan & options)
    (scan :with-versions & options)
    options could contain these keys:
-   - :eager?       If set to true, return a hash-map similar to the result of `get`, if false, returns a lazy scanner to fetch results later.
-   - :start-id     The ID the htable-scan starts from
-   - :stop-id      The ID the htable-scan stops at
-   - :cache-size   The number of rows fetched when getting a \"next\" item, only takes effect when `eager?` is set to false
-   - :small?       Determine if this is a \"small\" scan, see: https://hbase.apache.org/0.94/apidocs/org/apache/hadoop/hbase/client/Scan.html#setSmall(boolean)
-   - :max-versions The max version to fetch on each record
-   - :time-range   The time-range to fetch on each record
-   - :attrs        Same as the definition of `<attrs>` in `(get-data ..)`"
+     - :eager?       If set to true, return a hash-map similar to the result of `get`, if false, returns a lazy scanner to fetch results later.
+     - :start-id     The ID the htable-scan starts from
+     - :stop-id      The ID the htable-scan stops at
+     - :cache-size   The number of rows fetched when getting a \"next\" item, only takes effect when `eager?` is set to false
+     - :small?       Determine if this is a \"small\" scan, see: https://hbase.apache.org/0.94/apidocs/org/apache/hadoop/hbase/client/Scan.html#setSmall(boolean)
+     - :max-versions The max version to fetch on each record
+     - :time-range   The time-range to fetch on each record
+     - :attrs        Same as the definition of `<attrs>` in `(get-data ..)`"
   [& args]
   (let [with-versions? 
         (= :with-versions (first args)) 
