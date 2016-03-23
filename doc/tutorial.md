@@ -1,8 +1,4 @@
-# hbase-clj
-
-Talk to hbase in clojure
-
-## Usage
+# A Quick Tutorial to hbase-clj
 
 First, require the required namespaces
 
@@ -88,10 +84,3 @@ And we've got other tasty functions like
 * ...
 
 Check the [complete doc](http://cluxiss.github.io/hbase-clj/)!
-
-
-## License
-
-Copyright © 2016 cluXis
-
-Distributed under the Eclipse Public License either version 1.0 any later version.

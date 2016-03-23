@@ -1,3 +1,3 @@
 # Introduction to hbase-clj
 
-TODO: write [great documentation](http://jacobian.org/writing/what-to-write/)
+A tiny library for clojure to talk with hbase
