@@ -1,6 +1,6 @@
 (defproject org.cluxis.hbase-clj "0.1.0-SNAPSHOT"
   :description "Talk to hbase in clojure"
-  :url ""
+  :url "https://github.com/cluXiss/hbase-clj"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :profiles {:dev {:dependencies [[midje "1.7.0"]]}
