@@ -89,6 +89,14 @@ And we've got other tasty functions like
 
 Check the [complete doc](http://cluxiss.github.io/hbase-clj/)!
 
+## TODOs: 
+
+* More docs
+* Filter Support
+* Co-processor Support
+* More Table Management Tools
+* Support & Tests on various versions of Hadoop
+* More Integretion with the Hadoop Platform (e.g: MapReduce Support, etc.)
 
 ## License
 
