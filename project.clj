@@ -1,4 +1,4 @@
-(defproject org.cluxis.hbase-clj "0.1.0-SNAPSHOT"
+(defproject org.cluxis.hbase-clj "0.1.0-alpha.1"
   :description "Talk to hbase in clojure"
   :url "https://github.com/cluXiss/hbase-clj"
   :license {:name "Eclipse Public License"

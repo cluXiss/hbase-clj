@@ -1,6 +1,6 @@
 (ns hbase-clj.codec
-  (:import 
-    (org.apache.hadoop.hbase.util Bytes)))
+  (:require 
+    [hbase-clj.byte-utils :as b]))
 
 (defmulti encode (fn [t _] t))
 (defmulti decode (fn [t _] t))
@@ -18,17 +18,17 @@
      (defmethod decode ~t [t# data#] (~decoder data#))))
 
 (defcodec :long 
-  :encoder (fn [data] (Bytes/toBytes (long data)))
-  :decoder Bytes/toLong)
+  :encoder (fn [data] (b/->bytes (long data)))
+  :decoder b/->long)
 
 (defcodec :string 
-  :encoder (fn [data] (Bytes/toBytes data))
-  :decoder Bytes/toString)
+  :encoder (fn [data] (b/->bytes data))
+  :decoder b/->str)
 
 (defcodec :keyword 
-  :encoder (fn [data] (Bytes/toBytes (name data)))
-  :decoder (fn [data] (keyword (Bytes/toString data))))
+  :encoder (fn [data] (b/->bytes (name data)))
+  :decoder (fn [data] (keyword (b/->str data))))
 
 (defcodec :raw 
-  :encoder (fn [data] (Bytes/toBytes data))
+  :encoder identity
   :decoder identity)
