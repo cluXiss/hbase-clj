@@ -109,7 +109,7 @@
   [b t]
   (Bytes/indexOf b t))
 
-(defn ->string 
+(defn ->str
   ([b]
    (Bytes/toString b))
   ([b offset]
