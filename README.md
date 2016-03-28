@@ -4,6 +4,12 @@ Talk to hbase in clojure
 
 ## Usage
 
+### With Leiningen
+
+Add `[org.cluxis.hbase-clj "0.1.0-SNAPSHOT"]` into your `:dependencies` of `project.clj`
+
+### A tiny tutorial
+
 First, require the required namespaces
 
 ```

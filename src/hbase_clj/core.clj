@@ -20,6 +20,8 @@
     (org.apache.hadoop.hbase.util
       Bytes)))
 
+(def gen-hbase gen-config)
+
 (defmacro defhbase 
   "Defines a HBase Connection config with specified var name according to the options, 
    params should be pairs, e.g: 
@@ -33,6 +35,14 @@
 
 (defrecord HBTable-schema
   [hb table-name id-type families])
+
+(defn gen-htable 
+  [table-name {:keys [id-type hbase]} & families]
+  (HBTable-schema. 
+    (or hbase @latest-config)
+    (name table-name)
+    id-type
+    (hash-map ~@families)))
 
 (defmacro def-hbtable 
   "defines a htable \"schema\", 
