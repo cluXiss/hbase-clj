@@ -24,7 +24,7 @@
   {:id-type :string 
    :table-name table-name
    :hbase test-hbase}
-  :info  {:--ktype :keyword  :--vtype :long :name :string}
+  :info  {:--ktype :keyword  :--vtype :int :name :string}
   :score {:--ktype :keyword  :--vtype :long})
 
 (try 
@@ -125,11 +125,35 @@
         (get ["101" {:info [:age]}])
         => (just [(just ["101" {:info {:age 22}}])]))
 
+      (fact "calling `incr!` on nil cols inits the col"
+        (incr! ["101" {:info {:height 180}}])
+
+        (get ["101" {:info [:height]}])
+        => (just [(just ["101" {:info {:height 180}}])]))
+
+      (fact "calling `incr!` on non-existing rows inits the row"
+        (incr! ["201" {:info {:height 180}}])
+
+        (get ["201" {:info [:height]}])
+        => (just [(just ["201" {:info {:height 180}}])]))
+
+      (fact "batch support works"
+        (with-batch 
+          (put! ["202" {:info {:height 180}}])
+          (incr! ["202" {:info {:height 2}}])
+          (incr! ["202" {:info {:height 2}}])
+          
+          (dotimes [x 200]
+            (incr! ["202" {:info {:x 2}}])))
+        
+        (get ["202" {:info [:height :x]}])
+        => (just [(just ["202" {:info {:height 184 :x 400}}])]))
+
       #_(fact "calling `delete!` on a row"
-        (delete! "101")
-        (scan) => (just [(contains ["102"])
-                         (contains ["103"])
-                         (contains ["104"])]))
+          (delete! "101")
+          (scan) => (just [(contains ["102"])
+                           (contains ["103"])
+                           (contains ["104"])]))
 
       #_(fact "calling `delete!` on a family "
         (delete! ["102" [:score]])

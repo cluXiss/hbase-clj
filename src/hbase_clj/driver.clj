@@ -20,6 +20,8 @@
 
 (def ^:dynamic *table* nil)
 (def ^:dynamic *schema* nil)
+(def ^:dynamic *batch-mode?* false)
+(def ^:dynamic *batch-ops* false)
 
 (def connections (atom {}))
 (def latest-config (atom nil))

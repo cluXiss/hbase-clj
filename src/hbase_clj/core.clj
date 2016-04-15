@@ -90,6 +90,14 @@
        ~@form
        (.close *table*))))
 
+(defmacro with-batch
+  [& forms]
+  `(binding [*batch-mode?* true
+             *batch-ops* (transient [])]
+     ~@forms
+     (.batch *table* 
+             (persistent! *batch-ops*))))
+
 ;;=================CRUD==================
 
 (declare validate-tables proc-result get-putter get-getter get-deleter get-increr)
@@ -103,10 +111,13 @@
    attrs should be a hashmap of {family-> {col-> val}}"
   [& records]
   (validate-tables)
-  (.put *table* 
-        (vec 
-          (for [[id attr-map] records] 
-            (get-putter id attr-map)))))
+  (let [putters 
+        (for [[id attr-map] records] 
+          (get-putter id attr-map))] 
+    (if *batch-mode?*
+      (doseq [p putters]
+        (conj! *batch-ops* p))
+      (.put *table* (vec putters)))))
 
 (defn get
   "Get from HBase Table according to specified ids
@@ -238,13 +249,16 @@
 
   [& rows]
   (validate-tables)
-  (let [{:keys [id-type families]} *schema*]
-    (.batch *table*
-            (vec 
-              (map 
-                (fn [[id attr-map]]
-                  (get-increr id attr-map)) 
-                rows)))))
+  (let [{:keys [id-type families]} *schema*
+
+        incrers (map (fn [[id attr-map]]
+                       (get-increr id attr-map)) 
+                     rows)]
+
+    (if *batch-mode?*
+      (doseq [i incrers]
+        (conj! *batch-ops* i))
+      (.batch *table* (vec incrers)))))
 
 ;;The delete function fails with java.lang.UnsupportedOperationException
 ;;TODO: Figure out why
@@ -264,7 +278,6 @@
                (if (coll? r) 
                  (get-deleter (first r) (or (second r) []))
                  (get-deleter r []))))))
-
 
 ;;----------------------------HIDDEN FUNCTIONS--------------------------------
 
@@ -311,14 +324,38 @@
 (defn- get-increr
   [id attrs]
   (let [{:keys [id-type families]} *schema*
+
         ^Increment increr (Increment. (encode id-type id))
+
         addcolumn (fn [f c v]
-                    (.addColumn 
-                      increr 
-                      (encode :keyword f) 
-                      (encode (get-in families [f :--ktype])
-                              c)
-                      (long v)))]
+                    
+                    (let [family (encode :keyword f)]
+                      (println (decode 
+                                 (get-in families [f c]
+                                         (get-in families [f :--vtype]))
+                                 (encode 
+                                   (get-in families [family c]
+                                           (get-in families [f :--vtype]))
+                                   v)))
+                      (println (type (decode 
+                                 (get-in families [f c]
+                                         (get-in families [f :--vtype]))
+                                 (encode 
+                                   (get-in families [family c]
+                                           (get-in families [f :--vtype]))
+                                   v))))
+                      (.addColumn 
+                        increr family 
+                        (encode (get-in families [f :--ktype])
+                                c)
+                        
+                        (decode 
+                          (get-in families [f c]
+                                  (get-in families [f :--vtype]))
+                          (encode 
+                            (get-in families [family c]
+                                    (get-in families [f :--vtype]))
+                            v)))))]
 
     (doseq [[f attrs] attrs]
       (doseq [[c v] attrs]
@@ -353,20 +390,23 @@
 
 (defn- proc-result
   [with-versions? id-type families r]
-  [(decode id-type (.getRow r))
-   (apply merge-with 
-          (if with-versions? 
-            (partial merge-with concat)
-            merge)
-          (for [^KeyValue kv (.list r)]
-            (let [family (keyword (Bytes/toString (.getFamily kv)))
-                  attr   (decode (get-in families [family :--ktype])
-                                 (.getQualifier kv))
-                  v      (decode (get-in families [family attr]
-                                         (get-in families [family :--vtype]))
-                                 (.getValue kv))
-                  ts     (.getTimestamp kv)]
-              {family {attr (if with-versions?
-                              [{:val v :timestamp ts}]
-                              v)}})))])
+  (if (.getRow r) 
+    [(decode id-type (.getRow r))
+     (apply merge-with 
+            (if with-versions? 
+              (partial merge-with concat)
+              merge)
+            (for [^KeyValue kv (.list r)]
+              (let [family (keyword (Bytes/toString (.getFamily kv)))
+                    attr   (decode (get-in families [family :--ktype])
+                                   (.getQualifier kv))
+                    _ (println "decoding" family attr)
+                    _ (println (seq (.getRow r)))
+                    v      (decode (get-in families [family attr]
+                                           (get-in families [family :--vtype]))
+                                   (.getValue kv))
+                    ts     (.getTimestamp kv)]
+                {family {attr (if with-versions?
+                                [{:val v :timestamp ts}]
+                                v)}})))]))
  

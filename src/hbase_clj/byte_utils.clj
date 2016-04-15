@@ -2,19 +2,39 @@
   (:refer-clojure 
     :exclude [concat repeat assoc assoc! take take-last contains? find])
   (:import 
+    (org.cluxis.hbase_clj.helper ByteConversion)
     (org.apache.hadoop.hbase.util Bytes)))
+
+(defn size-of [t]
+  (case t
+    :bool (Bytes/SIZEOF_BOOLEAN)
+    :byte (Bytes/SIZEOF_BYTE)
+    :char (Bytes/SIZEOF_CHAR)
+    :double (Bytes/SIZEOF_DOUBLE)
+    :float (Bytes/SIZEOF_FLOAT)
+    :int (Bytes/SIZEOF_INT)
+    :long (Bytes/SIZEOF_LONG)
+    :short (Bytes/SIZEOF_SHORT)))
+
+(defn long-to-bytes [^long x]
+  (Bytes/toBytes x))
 
 (defn ->bytes 
   "Coerce to bytes"
   [x]
-  (Bytes/toBytes x))
+  ;; need to coerce explicitly, see: http://stackoverflow.com/questions/12586881/clojure-overloaded-method-resolution-for-longs
+  (case (pr-str (type x)) 
+    "java.lang.Long" (ByteConversion/fromLong (Long. x))  
+    "java.lang.Integer" (Bytes/toBytes (Integer. x))  
+    "java.lang.Short" (Bytes/toBytes (Short. x))  
+    (Bytes/toBytes x)))
 
 (defn concat 
   "concat several byte arraies together"
   [& b]
   (Bytes/add (into-array b)))
 
-(defn ->bcat 
+(defn ->bcat
   "Coerce to bytes and concat"
   [& b]
   (apply concat (map ->bytes b)))
@@ -119,6 +139,22 @@
 
 (defn ->bool [b]
   (Bytes/toBoolean b))
+
+(defn ->short 
+  ([b]
+   (Bytes/toShort b))
+  ([b offset]
+   (Bytes/toShort b offset))
+  ([b offset len]
+   (Bytes/toShort b offset len)))
+
+(defn ->int 
+  ([b]
+   (Bytes/toInt b))
+  ([b offset]
+   (Bytes/toInt b offset))
+  ([b offset len]
+   (Bytes/toInt b offset len)))
 
 (defn ->long 
   ([b]
