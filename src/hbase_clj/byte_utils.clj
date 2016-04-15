@@ -23,10 +23,10 @@
   "Coerce to bytes"
   [x]
   ;; need to coerce explicitly, see: http://stackoverflow.com/questions/12586881/clojure-overloaded-method-resolution-for-longs
-  (case (pr-str (type x)) 
-    "java.lang.Long" (ByteConversion/fromLong (Long. x))  
-    "java.lang.Integer" (Bytes/toBytes (Integer. x))  
-    "java.lang.Short" (Bytes/toBytes (Short. x))  
+  (condp = (class x)
+    java.lang.Long (ByteConversion/fromLong (Long. x))  
+    java.lang.Integer (Bytes/toBytes (Integer. x))  
+    java.lang.Short (Bytes/toBytes (Short. x))  
     (Bytes/toBytes x)))
 
 (defn concat 

@@ -400,8 +400,6 @@
               (let [family (keyword (Bytes/toString (.getFamily kv)))
                     attr   (decode (get-in families [family :--ktype])
                                    (.getQualifier kv))
-                    _ (println "decoding" family attr)
-                    _ (println (seq (.getRow r)))
                     v      (decode (get-in families [family attr]
                                            (get-in families [family :--vtype]))
                                    (.getValue kv))
